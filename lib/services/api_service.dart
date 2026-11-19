@@ -30,14 +30,16 @@ class ApiService {
           urlBase ??
               const String.fromEnvironment(
                 'API_BASE_URL',
-                defaultValue: 'http://10.0.2.2:3000',
+                defaultValue: 'https://oficina-bicicletas.onrender.com',
               ),
         );
 
   final http.Client _cliente;
   final String urlBase;
 
-  static const Duration _tempoLimite = Duration(seconds: 8);
+  // O Render "dorme" instâncias gratuitas; o primeiro acesso pode levar
+  // ~30 s para acordar. O timeout precisa cobrir esse cold start.
+  static const Duration _tempoLimite = Duration(seconds: 45);
 
   static String _normalizarUrl(String url) {
     return url.endsWith('/') ? url.substring(0, url.length - 1) : url;

@@ -1,282 +1,138 @@
 # Oficina de Bicicletas
 
-Aplicativo Flutter (Dart) para registrar ordens de serviço de uma oficina de
-bicicletas com persistência local em SQLite, API própria em Node.js/Express e
-banco PostgreSQL remoto. O app funciona **offline-first**: o cadastro nunca é
-perdido quando a API está indisponível e pode ser sincronizado manualmente
-depois.
+- **Temática:** Oficina de Bicicletas
+- **Estudante:** Bruno Jose Rodrigues Da Silva
+- **API publicada:** https://oficina-bicicletas.onrender.com
+- **Repositório:** https://github.com/Bjoota/oficina-bicicletas
 
----
+Aplicativo Flutter para cadastrar ordens de serviço (número da OS e valor) com
+SQLite local, API Node.js/Express e PostgreSQL remoto. Funciona **offline-first**:
+se a API estiver indisponível, o cadastro é salvo localmente como pendente e
+pode ser sincronizado manualmente depois.
 
-## 1. Diagnóstico inicial (auditoria)
-
-O repositório, antes desta etapa, continha apenas o esqueleto do app:
-
-| Item encontrado | Situação |
-| --- | --- |
-| `lib/main.dart` | Lista em memória (`List<dynamic>`), sem persistência |
-| `lib/screens/formulario.dart` | Formulário com OS e valor, devolvia o objeto para a tela anterior |
-| `lib/models/transferencia.dart` | Modelo `ServicoBicicleta` (valor + ordem de serviço) |
-| `lib/components/editor.dart` | Campo de texto reutilizável |
-| `pubspec.yaml` | Apenas `flutter`, `flutter_test` e `flutter_lints` |
-| API / banco / repository / services / database | **Não existiam** |
-
-Requisitos que estavam **pendentes**: SQLite, API Node.js, PostgreSQL, camada
-`services`, camada `repository`, estratégia offline-first, marcação de
-pendentes, botão de sincronização manual e documentação.
-
-A identidade visual (tema "Oficina de Bicicletas", ícones de bicicleta, telas
-de lista e cadastro) foi preservada e evoluída.
-
----
-
-## 2. Estrutura do projeto
+## Estrutura
 
 ```text
 lib/
-├── components/
-│   └── editor.dart                    # campo de formulário reutilizável
-├── models/
-│   ├── ordem_servico.dart             # modelo local + JSON da API
-│   └── transferencia.dart             # modelo legado (fluxo em memória)
-├── screens/
-│   └── formulario.dart                # cadastro de OS
-├── services/
-│   └── api_service.dart               # HTTP (GET/POST /ordens)
-├── repository/
-│   └── ordem_servico_repository.dart  # regra offline-first
-├── database/
-│   └── sqlite_database.dart           # abertura, CRUD e pendências no SQLite
-└── main.dart                          # lista, status e sincronização manual
+├── components/editor.dart
+├── models/ordem_servico.dart
+├── screens/formulario.dart
+├── services/api_service.dart
+├── repository/ordem_servico_repository.dart
+├── database/sqlite_database.dart
+└── main.dart
 
 api/
-├── index.js                           # bootstrap (dotenv + Express)
+├── index.js
 ├── package.json
-├── .env.example                       # modelo de variáveis de ambiente
 └── src/
-    ├── app.js                         # middlewares e rotas
-    ├── controllers/ordens.controller.js
+    ├── app.js
     ├── routes/ordens.routes.js
+    ├── controllers/ordens.controller.js
     ├── services/ordens.service.js
     ├── middlewares/errorHandler.js
     └── database/
-        ├── index.js                   # pool pg (DATABASE_URL)
-        └── schema.sql                 # tabela ordens_servico
+        ├── index.js
+        └── schema.sql
 ```
 
----
+## API
 
-## 3. API (Node.js + Express + PostgreSQL)
+| Método | Rota | Descrição |
+| --- | --- | --- |
+| `GET` | `/health` | Status da API e do PostgreSQL |
+| `GET` | `/ordens` | Lista as ordens de serviço |
+| `POST` | `/ordens` | Cadastra uma ordem |
 
-### Variáveis de ambiente
+```json
+POST /ordens
+{ "ordemServico": 1001, "valor": 89.90 }
 
-Crie `api/.env` a partir de `api/.env.example`:
-
-```bash
-DATABASE_URL=postgresql://USUARIO:SENHA@HOST:5432/BANCO?sslmode=require
-DATABASE_SSL=false
-PORT=3000
+201 Created
+{ "id": 1, "ordemServico": 1001, "valor": 89.9, "criadoEm": "..." }
 ```
 
-- `DATABASE_URL` é obrigatória e não deve ser versionada.
-- `DATABASE_SSL=true` apenas se o provedor exigir SSL sem certificado
-  validável localmente.
-- Nenhuma credencial está escrita no código ou no repositório.
+A API usa `DATABASE_URL` e `PORT` (veja `api/.env.example`). O schema é criado
+automaticamente na inicialização.
 
-### Instalação e execução
+## Offline-first
+
+1. **API disponível:** o repository envia `POST /ordens`, salva no SQLite com
+   `sincronizado = 1` e o app mostra "Sincronizada com a API".
+2. **API indisponível:** o cadastro é salvo no SQLite com `sincronizado = 0`,
+   exibido como "Pendente de sincronização" com contador no topo.
+3. **Sincronização manual:** o botão de nuvem envia os pendentes e marca cada
+   registro como sincronizado somente após a confirmação do servidor.
+4. **Buscar da API:** o outro botão importa registros remotos que ainda não
+   existem no SQLite.
+
+## Como rodar
+
+```powershell
+$env:Path = "C:\flutter\bin;" + $env:Path
+flutter pub get
+flutter run -d edge
+```
+
+O app usa por padrão `https://oficina-bicicletas.onrender.com`. O Render pode
+levar ~30 s para acordar; o timeout do app é de 45 s.
+
+Se o `flutter run -d edge` falhar ao conectar no debug service (instabilidade do
+Edge), use o servidor web e abra a URL manualmente:
+
+```powershell
+flutter run -d web-server --release --web-port 53127
+# abra http://127.0.0.1:53127 no Edge
+```
+
+### Atalho no Windows
+
+Na Área de Trabalho há o atalho **Oficina de Bicicletas**. Ele executa
+`abrir_oficina.ps1`, sobe o servidor local se necessário e abre o app em uma
+janela própria do Edge (sem abas nem barra de endereço). A primeira abertura
+pode levar até 1 minuto; depois é quase instantânea.
+
+Para simular a API indisponível e depois sincronizar (mantenha a mesma porta
+para preservar o SQLite do navegador):
+
+```powershell
+# offline
+flutter run -d edge --web-port 53127 --dart-define=API_BASE_URL=http://127.0.0.1:9
+
+# online novamente
+flutter run -d edge --web-port 53127
+```
+
+## Testes realizados
+
+```text
+flutter analyze  → No issues found!
+flutter test     → 2 testes aprovados
+API /health      → 200 (PostgreSQL conectado)
+API GET /ordens  → 200
+API POST /ordens → 201 (registro gravado no PostgreSQL)
+CORS             → liberado
+```
+
+Cenários para validar/demonstrar:
+
+1. **Online:** cadastrar uma OS e conferir o registro em `/ordens`.
+2. **Offline:** rodar com a URL inválida, cadastrar e ver o registro pendente.
+3. **Sincronizar:** voltar a URL real, tocar em sincronizar e conferir em
+   `/ordens`.
+
+## Roteiro do vídeo (até 5 min)
+
+1. Abrir o app e mostrar a listagem.
+2. Cadastrar uma OS com a API no ar e mostrar em `/ordens`.
+3. Reiniciar com a URL inválida, cadastrar outra OS e mostrar como pendente.
+4. Reiniciar com a URL real, sincronizar e mostrar o registro na API.
+5. Mostrar rapidamente as pastas `services`, `repository` e `database`.
+
+## API local (opcional)
 
 ```bash
 cd api
 npm install
-npm start        # produção
-npm run dev      # desenvolvimento (watch)
+npm start
 ```
-
-O schema é criado/verificado automaticamente na inicialização
-(`api/src/database/schema.sql`, idempotente com `CREATE TABLE IF NOT EXISTS`).
-
-### Rotas
-
-| Método | Rota | Descrição |
-| --- | --- | --- |
-| `GET` | `/health` | Verifica API + conexão com o PostgreSQL |
-| `GET` | `/ordens` | Lista todas as ordens (mais recentes primeiro) |
-| `POST` | `/ordens` | Cadastra uma ordem |
-
-**POST /ordens**
-
-```json
-{
-  "ordemServico": 1024,
-  "valor": 89.9
-}
-```
-
-Resposta `201`:
-
-```json
-{
-  "id": 1,
-  "ordemServico": 1024,
-  "valor": 89.9,
-  "criadoEm": "2026-11-18T12:00:00.000Z"
-}
-```
-
-Erros de validação retornam `400`:
-
-```json
-{
-  "erro": "Dados inválidos.",
-  "detalhes": ["\"valor\" deve ser um número maior ou igual a zero."]
-}
-```
-
----
-
-## 4. Persistência local (SQLite)
-
-Banco `oficina_bicicletas.db`, tabela `ordens_servico`:
-
-| Coluna | Tipo | Papel |
-| --- | --- | --- |
-| `id` | INTEGER PK AUTOINCREMENT | id local |
-| `ordem_servico` | INTEGER | número da OS |
-| `valor` | REAL | valor do serviço |
-| `sincronizado` | INTEGER (0/1) | `1` = confirmada pela API |
-| `remote_id` | INTEGER | id devolvido pelo PostgreSQL |
-| `criado_em` | TEXT (ISO-8601 UTC) | data do cadastro |
-
-O acesso fica isolado em `lib/database/sqlite_database.dart`
-(inserir, listar, listar pendentes, contar pendentes, marcar como sincronizada).
-
----
-
-## 5. Fluxo offline-first
-
-### API disponível
-
-1. A tela de cadastro chama `OrdemServicoRepository.cadastrar`.
-2. O repositório envia `POST /ordens`.
-3. A API grava no PostgreSQL e devolve o `id`.
-4. O registro é persistido no SQLite com `sincronizado = 1` e `remote_id`.
-5. A lista exibe **"Sincronizada com a API"**.
-
-### API indisponível
-
-1. O envio HTTP falha (timeout, conexão recusada, erro 5xx etc.).
-2. O repositório **não descarta** o cadastro.
-3. A ordem é gravada no SQLite com `sincronizado = 0`.
-4. A lista exibe **"Pendente de sincronização"**, ícone de nuvem desligada,
-   contador no topo e faixa de aviso.
-
-### API volta a responder
-
-1. O usuário toca no ícone de sincronização (ou em **Sincronizar** na faixa).
-2. O repositório busca as ordens com `sincronizado = 0`.
-3. Cada ordem é enviada via `POST /ordens`.
-4. Somente após a confirmação do servidor o registro é marcado com
-   `sincronizado = 1` e o `remote_id` recebido.
-5. A lista e o contador são atualizados; um `SnackBar` informa quantas ordens
-   foram sincronizadas e quantas continuam pendentes.
-
-Se a conexão cair durante a sincronização, o processo para na primeira falha
-de rede para não repetir timeouts em todas as ordens; as restantes permanecem
-pendentes e podem ser reenviadas depois.
-
-### Onde fica cada responsabilidade
-
-- **UI** (`screens`, `main.dart`): apenas estado de tela e feedback ao usuário.
-- **Repository**: decide entre API e SQLite e controla a marcação de
-  pendências/sincronização.
-- **Service**: única camada que conhece HTTP e o formato JSON da API.
-- **Database**: única camada que conhece SQL/SQLite.
-
----
-
-## 6. Executar o aplicativo
-
-Pré-requisitos: Flutter 3.x, um dispositivo/emulador Android (SQLite não roda
-no Flutter Web) e a API acessível.
-
-```bash
-flutter pub get
-flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3000
-```
-
-- `10.0.2.2` é o host da máquina visto pelo **emulador Android**.
-- Em aparelho físico, use o IP da máquina na rede local, por exemplo:
-  `--dart-define=API_BASE_URL=http://192.168.0.10:3000`.
-- Sem `--dart-define`, o padrão é `http://10.0.2.2:3000`.
-- Para dispositivo físico em HTTP, o Android já está configurado com
-  `usesCleartextTraffic`; em produção prefira HTTPS.
-
----
-
-## 7. Testes manuais dos três cenários
-
-Os cenários abaixo descrevem a validação funcional esperada. Execute-os com a
-API/PostgreSQL configurados.
-
-1. **API disponível**
-   - API no ar, cadastrar OS no app.
-   - Esperado: `POST /ordens` retorna `201`; lista mostra "Sincronizada";
-     registro presente em `GET /ordens` e no PostgreSQL.
-
-2. **API indisponível**
-   - Parar a API (ou deixar `API_BASE_URL` apontando para uma porta fechada).
-   - Cadastrar OS no app.
-   - Esperado: cadastro aceito, salvo no SQLite, "Pendente de sincronização";
-     contador e faixa de aviso visíveis.
-
-3. **Sincronização manual**
-   - Religar a API e tocar no ícone de sincronização.
-   - Esperado: ordens pendentes enviadas, marcadas como sincronizadas após
-     confirmação, contador zerado e registro disponível em `GET /ordens`.
-
-### Verificação estática executada neste repositório
-
-```bash
-flutter pub get
-flutter analyze
-```
-
-A API **não foi executada** nesta máquina nesta etapa, pois depende de um
-PostgreSQL remoto configurado (`DATABASE_URL`). Nenhum resultado de teste de
-integração é inventado neste documento: os três cenários acima precisam ser
-executados com credenciais reais.
-
----
-
-## 8. Publicação
-
-### Android
-
-```bash
-flutter build apk --release --dart-define=API_BASE_URL=https://SUA-API
-```
-
-- Gere uma keystore própria e configure `android/key.properties` +
-  `signingConfigs` (o projeto ainda usa a assinatura de debug).
-- A API deve estar publicada com HTTPS (Render, Railway, Fly.io, VPS etc.) e o
-  PostgreSQL remoto (Neon, Supabase, Railway, RDS etc.) com `DATABASE_URL`
-  configurada no painel do serviço.
-
-### Checklist
-
-- [ ] `api/.env` criado fora do versionamento.
-- [ ] `DATABASE_URL` do PostgreSQL remoto válida.
-- [ ] `POST /ordens` e `GET /ordens` respondendo no host público.
-- [ ] `--dart-define=API_BASE_URL` apontando para a API publicada.
-- [ ] Testar os três cenários (online, offline e sincronização manual).
-- [ ] Chave de assinatura release configurada.
-
----
-
-## 9. Pendências que exigem ação manual
-
-- Criar o banco PostgreSQL remoto e preencher `api/.env`.
-- Executar `npm install` e publicar a API (não há infraestrutura publicada por
-  este repositório).
-- Rodar o app em emulador/dispositivo para validar os três cenários reais.
-- Configurar assinatura release e URL HTTPS antes de publicar na loja.

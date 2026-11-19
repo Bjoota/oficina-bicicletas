@@ -1,10 +1,21 @@
 import 'package:flutter/material.dart';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:sqflite/sqflite.dart' show databaseFactory;
+import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 import 'models/ordem_servico.dart';
 import 'repository/ordem_servico_repository.dart';
 import 'screens/formulario.dart';
+import 'services/api_service.dart';
 
-void main() => runApp(const OficinaApp());
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  if (kIsWeb) {
+    databaseFactory = databaseFactoryFfiWeb;
+  }
+  runApp(const OficinaApp());
+}
 
 class OficinaApp extends StatelessWidget {
   const OficinaApp({super.key});
@@ -37,6 +48,7 @@ class _ListaServicosState extends State<ListaServicos> {
   List<OrdemServico> _ordens = const [];
   bool _carregando = true;
   bool _sincronizando = false;
+  bool _buscandoRemotas = false;
 
   int get _pendentes =>
       _ordens.where((ordem) => !ordem.sincronizado).length;
@@ -133,6 +145,40 @@ class _ListaServicosState extends State<ListaServicos> {
     }
   }
 
+  Future<void> _buscarRemotas() async {
+    if (_buscandoRemotas) return;
+
+    setState(() {
+      _buscandoRemotas = true;
+    });
+
+    try {
+      final importadas = await _repositorio.importarRemotas();
+      await _carregar(exibirCarregamento: false);
+      if (!mounted) return;
+
+      _exibirMensagem(
+        importadas == 0
+            ? 'Nenhum registro novo encontrado na API.'
+            : '$importadas registro(s) importado(s) da API.',
+      );
+    } on ApiException catch (erro) {
+      if (mounted) {
+        _exibirMensagem('Não foi possível buscar da API: ${erro.mensagem}');
+      }
+    } catch (erro) {
+      if (mounted) {
+        _exibirMensagem('Não foi possível buscar da API: $erro');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _buscandoRemotas = false;
+        });
+      }
+    }
+  }
+
   void _exibirMensagem(String texto) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -159,8 +205,20 @@ class _ListaServicosState extends State<ListaServicos> {
         title: const Text('Oficina de Bicicletas'),
         actions: [
           IconButton(
+            tooltip: 'Buscar registros da API',
+            onPressed:
+                (_buscandoRemotas || _sincronizando) ? null : _buscarRemotas,
+            icon: _buscandoRemotas
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.cloud_download_outlined),
+          ),
+          IconButton(
             tooltip: 'Sincronizar registros pendentes',
-            onPressed: _sincronizando ? null : _sincronizar,
+            onPressed: (_sincronizando || _buscandoRemotas) ? null : _sincronizar,
             icon: _sincronizando
                 ? const SizedBox(
                     width: 20,

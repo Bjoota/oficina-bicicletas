@@ -59,6 +59,43 @@ class OrdemServicoRepository {
 
   Future<int> contarPendentes() => _bancoLocal.contarPendentes();
 
+  /// Busca os registros da API e importa para o SQLite os que ainda não
+  /// existem localmente (comparação pelo id remoto).
+  ///
+  /// Retorna quantos registros novos foram importados. Registros já
+  /// conhecidos são ignorados para não duplicar a listagem.
+  Future<int> importarRemotas() async {
+    final remotas = await _apiService.listarOrdens();
+    final locais = await _bancoLocal.listarTodas();
+    final idsConhecidos = locais
+        .map((ordem) => ordem.idRemoto)
+        .whereType<int>()
+        .toSet();
+
+    var importadas = 0;
+
+    for (final remota in remotas) {
+      final idRemoto = remota.idRemoto;
+      if (idRemoto == null || idsConhecidos.contains(idRemoto)) {
+        continue;
+      }
+
+      await _bancoLocal.inserir(
+        OrdemServico(
+          ordemServico: remota.ordemServico,
+          valor: remota.valor,
+          criadaEm: remota.criadaEm,
+          sincronizado: true,
+          idRemoto: idRemoto,
+        ),
+      );
+      idsConhecidos.add(idRemoto);
+      importadas++;
+    }
+
+    return importadas;
+  }
+
   Future<ResultadoCadastro> cadastrar({
     required int ordemServico,
     required double valor,

@@ -43,8 +43,9 @@ class OrdemServico {
     );
   }
 
-  Map<String, Object?> paraMapaLocal() {
+  Map<String, Object?> paraMapaLocal({bool incluirId = false}) {
     return {
+      if (incluirId && id != null) 'id': id,
       'ordem_servico': ordemServico,
       'valor': valor,
       'remote_id': idRemoto,
