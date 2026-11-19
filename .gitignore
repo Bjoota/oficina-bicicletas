@@ -1,0 +1,36 @@
+# Artefatos de build
+build/
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.iml
+
+# Android
+android/.gradle/
+android/local.properties
+android/key.properties
+*.jks
+*.keystore
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/ephemeral/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+
+# Node/API
+node_modules/
+api/.env
+api/.env.*
+!api/.env.example
+
+# Sistema/editor
+.idea/
+.vscode/
+*.log
+.DS_Store
+Thumbs.db
